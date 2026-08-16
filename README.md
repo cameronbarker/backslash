@@ -61,7 +61,7 @@ cp ~/.config/backslash-terminal/commands.example.yaml ~/.config/backslash-termin
 
 Then press `/` on an empty prompt.
 
-The picker shows each command's source, name, description, and hints. The preview window shows the shell command that will run.
+The picker lists command names on the left. The preview window shows the selected command's description, shell command, source, flags, and argument hints.
 
 ## Command Files
 
@@ -161,8 +161,8 @@ For commands with both placeholders and `confirm`, argument prompts happen first
 
 - `SLASH_COMMANDS_FILE`: global command file path
 - `SLASH_PROJECT_COMMANDS_FILE`: project-local filename, default `.slash-commands.yaml`
-- `SLASH_FZF_HEIGHT`: picker height, default `40%`
-- `SLASH_FZF_PREVIEW`: preview window setting, default `down:4:wrap`
+- `SLASH_FZF_HEIGHT`: picker height, default `80%`
+- `SLASH_FZF_PREVIEW`: preview window setting, default `right:45%:wrap`
 - `SLASH_DIM_COMMAND_LINE`: dim the selected command line before command output, default `1`
 - `SLASH_RUN_LINE_COLOR`: zsh highlight color for the selected command line, default `244`
 

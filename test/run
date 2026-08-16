@@ -50,8 +50,12 @@ HOME="$TEST_TMP/home"
 PWD="$TEST_TMP/work/project/subdir"
 SLASH_COMMANDS_FILE="$HOME/.config/backslash-terminal/commands.yaml"
 SLASH_PROJECT_COMMANDS_FILE=".slash-commands.yaml"
+unset SLASH_FZF_HEIGHT SLASH_FZF_PREVIEW SLASH_DIM_COMMAND_LINE SLASH_RUN_LINE_COLOR
 
 source "$ROOT/slash.zsh"
+
+assert_eq "picker height defaults to a taller palette" "80%" "$SLASH_FZF_HEIGHT"
+assert_eq "picker preview defaults to a side pane" "right:45%:wrap" "$SLASH_FZF_PREVIEW"
 
 {
   print -r -- "# comment"
@@ -147,8 +151,13 @@ else
 fi
 
 zle_call_log=""
+zle_message=""
 zle() {
   case "$1" in
+    -M)
+      zle_message="$2"
+      zle_call_log="${zle_call_log} message"
+      ;;
     self-insert)
       BUFFER="${BUFFER}/"
       zle_call_log="${zle_call_log} self-insert"
@@ -190,6 +199,18 @@ CURSOR=3
 _slash_widget
 assert_eq "non-empty buffer inserts slash" "cd /" "$BUFFER"
 assert_eq "non-empty buffer does not accept line" " self-insert" "$zle_call_log"
+
+_slash_pick_command() {
+  return 127
+}
+
+zle_call_log=""
+zle_message=""
+BUFFER=""
+CURSOR=0
+_slash_widget
+assert_eq "missing fzf widget shows useful message" "backslash-terminal: fzf is required for the slash palette" "$zle_message"
+assert_eq "missing fzf widget redisplays prompt" " message redisplay" "$zle_call_log"
 
 print -- ""
 print -- "$pass_count passed, $fail_count failed"

@@ -5,6 +5,8 @@
 
 : ${SLASH_COMMANDS_FILE:="$HOME/.config/backslash-terminal/commands.yaml"}
 : ${SLASH_PROJECT_COMMANDS_FILE:=".slash-commands.yaml"}
+: ${SLASH_FZF_HEIGHT:=80%}
+: ${SLASH_FZF_PREVIEW:=right:45%:wrap}
 : ${SLASH_DIM_COMMAND_LINE:=1}
 : ${SLASH_RUN_LINE_COLOR:=244}
 
@@ -260,12 +262,13 @@ _slash_pick_command() {
 
   _slash_commands | _slash_palette_rows | fzf \
     --prompt="/ " \
-    --height="${SLASH_FZF_HEIGHT:-40%}" \
+    --height="$SLASH_FZF_HEIGHT" \
     --layout=reverse \
     --delimiter=$'\t' \
-    --with-nth=1,2,3,6 \
-    --preview='printf "%s\n\nsource: %s\nflags: %s\n" {4} {1} {5}' \
-    --preview-window="${SLASH_FZF_PREVIEW:-down:4:wrap}"
+    --with-nth=2 \
+    --nth=2,3,4,6 \
+    --preview='printf "%s\n\n%s\n\ncommand:\n%s\n\nsource: %s\nflags: %s\nhints: %s\n" {2} {3} {4} {1} {5} {6}' \
+    --preview-window="$SLASH_FZF_PREVIEW"
 }
 
 _slash_field() {
@@ -370,6 +373,7 @@ _slash_dim_command_line() {
 
 _slash_widget() {
   local row command
+  local slash_status
 
   if [[ -n "$BUFFER" ]]; then
     zle self-insert
@@ -377,6 +381,11 @@ _slash_widget() {
   fi
 
   row="$(_slash_pick_command)" || {
+    slash_status=$?
+    if (( slash_status == 127 )); then
+      zle -M "backslash-terminal: fzf is required for the slash palette"
+    fi
+
     zle redisplay
     return
   }
