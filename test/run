@@ -1,0 +1,197 @@
+#!/usr/bin/env zsh
+set -u
+
+ROOT="${0:A:h:h}"
+TEST_TMP="${TMPDIR:-/tmp}/backslash-terminal-test-$$"
+
+pass_count=0
+fail_count=0
+
+fail() {
+  print -u2 -- "not ok - $1"
+  fail_count=$((fail_count + 1))
+}
+
+pass() {
+  print -- "ok - $1"
+  pass_count=$((pass_count + 1))
+}
+
+assert_eq() {
+  local name="$1"
+  local expected="$2"
+  local actual="$3"
+
+  if [[ "$actual" == "$expected" ]]; then
+    pass "$name"
+  else
+    fail "$name"
+    print -u2 -- "  expected: $expected"
+    print -u2 -- "  actual:   $actual"
+  fi
+}
+
+assert_status() {
+  local name="$1"
+  local expected="$2"
+  local actual="$3"
+
+  assert_eq "$name" "$expected" "$actual"
+}
+
+cleanup() {
+  rm -rf "$TEST_TMP"
+}
+
+trap cleanup EXIT
+mkdir -p "$TEST_TMP/home/.config/backslash-terminal" "$TEST_TMP/work/project/subdir"
+
+HOME="$TEST_TMP/home"
+PWD="$TEST_TMP/work/project/subdir"
+SLASH_COMMANDS_FILE="$HOME/.config/backslash-terminal/commands.yaml"
+SLASH_PROJECT_COMMANDS_FILE=".slash-commands.yaml"
+
+source "$ROOT/slash.zsh"
+
+{
+  print -r -- "# comment"
+  print -r -- ""
+  print -r -- "commands:"
+  print -r -- "  - name: global"
+  print -r -- "    description: Global command"
+  print -r -- "    command: echo global"
+  print -r -- "  - name: branch"
+  print -r -- "    description: Check out branch"
+  print -r -- "    command: git checkout {branch}"
+  print -r -- "  - name: bad"
+  print -r -- "    description: Missing command"
+} > "$SLASH_COMMANDS_FILE"
+
+{
+  print -r -- "commands:"
+  print -r -- "  - name: project"
+  print -r -- "    description: Project command"
+  print -r -- "    command: echo project"
+  print -r -- "  - name: clean"
+  print -r -- "    description: Clean output"
+  print -r -- "    command: rm -rf dist"
+  print -r -- "    flags:"
+  print -r -- "      - confirm"
+  print -r -- "  - name: rebuild"
+  print -r -- "    description: Rebuild output"
+  print -r -- "    command: make clean all"
+  print -r -- "    flags: [confirm]"
+  print -r -- "  - name: copy"
+  print -r -- "    description: Copy branch"
+  print -r -- "    command: git branch {branch}-copy {branch}"
+  print -r -- "  - name: compare"
+  print -r -- "    description: Compare refs"
+  print -r -- "    command: git diff {base}..{head}"
+} > "$TEST_TMP/work/project/.slash-commands.yaml"
+
+command_rows="$(_slash_commands)"
+expected=$'project\tproject\tProject command\techo project\t\nproject\tclean\tClean output\trm -rf dist\tconfirm\nproject\trebuild\tRebuild output\tmake clean all\tconfirm\nproject\tcopy\tCopy branch\tgit branch {branch}-copy {branch}\t\nproject\tcompare\tCompare refs\tgit diff {base}..{head}\t\nglobal\tglobal\tGlobal command\techo global\t\nglobal\tbranch\tCheck out branch\tgit checkout {branch}\t'
+assert_eq "loads nearest project commands before global commands" "$expected" "$command_rows"
+
+palette_rows="$(print -r -- "$command_rows" | _slash_palette_rows)"
+expected_palette=$'project\tproject\tProject command\techo project\t\t\nproject\tclean\tClean output\trm -rf dist\tconfirm\tconfirm\nproject\trebuild\tRebuild output\tmake clean all\tconfirm\tconfirm\nproject\tcopy\tCopy branch\tgit branch {branch}-copy {branch}\t\targs:{branch}\nproject\tcompare\tCompare refs\tgit diff {base}..{head}\t\targs:{base},{head}\nglobal\tglobal\tGlobal command\techo global\t\t\nglobal\tbranch\tCheck out branch\tgit checkout {branch}\t\targs:{branch}'
+assert_eq "palette rows include source and hints" "$expected_palette" "$palette_rows"
+
+project_file="$(_slash_project_commands_file)"
+assert_eq "finds nearest project command file" "$TEST_TMP/work/project/.slash-commands.yaml" "$project_file"
+
+selected="$(_slash_selected_command $'project\tproject\tProject command\techo project\t\t')"
+assert_eq "extracts selected command" "echo project" "$selected"
+
+resolved="$(printf 'feature/demo\n' | _slash_selected_command $'global\tbranch\tCheck out branch\tgit checkout {branch}\t\targs:{branch}')"
+assert_eq "prompts for one placeholder" "git checkout feature/demo" "$resolved"
+
+resolved="$(printf 'feature/demo\n' | _slash_selected_command $'project\tcopy\tCopy branch\tgit branch {branch}-copy {branch}\t\targs:{branch}')"
+assert_eq "prompts once for repeated placeholder" "git branch feature/demo-copy feature/demo" "$resolved"
+
+resolved="$(printf 'main\nfeature/demo\n' | _slash_selected_command $'project\tcompare\tCompare refs\tgit diff {base}..{head}\t\targs:{base},{head}')"
+assert_eq "prompts for multiple placeholders in order" "git diff main..feature/demo" "$resolved"
+
+resolved="$(printf 'foo\\bar\n' | _slash_selected_command $'global\tliteral\tLiteral value\techo {value}\t\targs:{value}')"
+assert_eq "preserves placeholder backslashes" $'echo foo\\bar' "$resolved"
+
+resolved="$(printf 'foo&bar\n' | _slash_selected_command $'global\tliteral\tLiteral value\techo {value}\t\targs:{value}')"
+assert_eq "preserves placeholder ampersands" "echo foo&bar" "$resolved"
+
+printf '\n' | _slash_selected_command $'global\tbranch\tCheck out branch\tgit checkout {branch}\t\targs:{branch}' >/dev/null
+assert_status "empty placeholder input cancels command" "1" "$?"
+
+printf 'n\n' | _slash_selected_command $'project\tclean\tClean output\trm -rf dist\tconfirm\tconfirm' >/dev/null
+assert_status "confirm command cancels on non-y" "1" "$?"
+
+confirmed="$(printf 'Y\n' | _slash_selected_command $'project\tclean\tClean output\trm -rf dist\tconfirm\tconfirm')"
+assert_eq "confirm command accepts uppercase y" "rm -rf dist" "$confirmed"
+
+confirmed="$(printf 'feature/demo\nY\n' | _slash_selected_command $'global\tbranch\tCheck out branch\tgit checkout {branch}\tconfirm\targs:{branch},confirm')"
+assert_eq "confirm uses resolved placeholder command" "git checkout feature/demo" "$confirmed"
+
+SLASH_RUN_LINE_COLOR=240
+run_line="$(_slash_run_line_color)"
+assert_eq "command line dim color is configurable" "240" "$run_line"
+SLASH_RUN_LINE_COLOR='bad color'
+run_line="$(_slash_run_line_color)"
+assert_eq "invalid command line dim color falls back to dim gray" "244" "$run_line"
+SLASH_RUN_LINE_COLOR=244
+
+if command -v fzf >/dev/null 2>&1; then
+  assert_status "fzf is available" "0" "0"
+else
+  _slash_pick_command >/dev/null 2>"$TEST_TMP/fzf-error"
+  assert_status "missing fzf returns 127" "127" "$?"
+  assert_eq "missing fzf prints useful error" "backslash-terminal: fzf is required for the slash palette" "$(cat "$TEST_TMP/fzf-error")"
+fi
+
+zle_call_log=""
+zle() {
+  case "$1" in
+    self-insert)
+      BUFFER="${BUFFER}/"
+      zle_call_log="${zle_call_log} self-insert"
+      ;;
+    accept-line)
+      zle_call_log="${zle_call_log} accept-line"
+      ;;
+    redisplay)
+      zle_call_log="${zle_call_log} redisplay"
+      ;;
+  esac
+}
+
+_slash_pick_command() {
+  print -r -- $'project\tproject\tProject command\t:\t\t'
+}
+
+BUFFER=""
+CURSOR=0
+_slash_widget
+assert_eq "empty buffer selection sets raw command buffer by default" ":" "$BUFFER"
+assert_eq "empty buffer selection accepts line by default" " accept-line" "$zle_call_log"
+assert_eq "empty buffer selection dims accepted command line by default" "0 1 fg=244" "$region_highlight"
+
+SLASH_DIM_COMMAND_LINE=0
+zle_call_log=""
+region_highlight=()
+BUFFER=""
+CURSOR=0
+_slash_widget
+assert_eq "disabled command line dimming keeps raw command buffer" ":" "$BUFFER"
+assert_eq "disabled command line dimming still accepts line" " accept-line" "$zle_call_log"
+assert_eq "disabled command line dimming leaves highlight empty" "" "${(j:,:)region_highlight}"
+SLASH_DIM_COMMAND_LINE=1
+
+zle_call_log=""
+BUFFER="cd "
+CURSOR=3
+_slash_widget
+assert_eq "non-empty buffer inserts slash" "cd /" "$BUFFER"
+assert_eq "non-empty buffer does not accept line" " self-insert" "$zle_call_log"
+
+print -- ""
+print -- "$pass_count passed, $fail_count failed"
+
+(( fail_count == 0 ))

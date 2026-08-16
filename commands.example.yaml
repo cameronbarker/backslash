@@ -1,0 +1,27 @@
+# backslash-terminal command file
+commands:
+  - name: status
+    description: Show git status
+    command: git status
+
+  - name: test
+    description: Run project tests
+    command: npm test
+
+  - name: dev
+    description: Start the development server
+    command: npm run dev
+
+  - name: checkout
+    description: Check out a git branch
+    command: git checkout {branch}
+
+  - name: compare
+    description: Compare two git refs
+    command: git diff {base}..{head}
+
+  - name: clean
+    description: Remove build output
+    command: rm -rf dist
+    flags:
+      - confirm

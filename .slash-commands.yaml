@@ -1,0 +1,8 @@
+commands:
+  - name: hello
+    description: Print a project-local test message
+    command: echo "hello from backslash-terminal project commands"
+
+  - name: shell-source
+    description: Print the terminal shell source being used
+    command: echo "SHELL=$SHELL; process=$(ps -p $$ -o comm=); zsh=${ZSH_VERSION:-not-zsh}; bash=${BASH_VERSION:-not-bash}"
