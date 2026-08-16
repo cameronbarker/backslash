@@ -36,13 +36,19 @@ brew install fzf
 
 ## Installation
 
-Source the plugin from your `.zshrc`:
+Run the installer:
 
 ```sh
-source /path/to/backslash-terminal/slash.zsh
+curl -fsSL https://raw.githubusercontent.com/cameronbarker/backslash/main/bootstrap.sh | bash
 ```
 
-Open a new zsh session after editing `.zshrc`.
+The installer creates `~/.config/backslash-terminal`, downloads the plugin and example commands, creates `commands.yaml` if it does not already exist, and adds this line to your `.zshrc`:
+
+```sh
+source ~/.config/backslash-terminal/slash.zsh
+```
+
+Open a new zsh session after installation. To install manually, place `slash.zsh` anywhere stable and source it from `.zshrc`.
 
 ## Quick Start
 
@@ -50,7 +56,7 @@ Create a global command file:
 
 ```sh
 mkdir -p ~/.config/backslash-terminal
-cp /path/to/backslash-terminal/commands.example.yaml ~/.config/backslash-terminal/commands.yaml
+cp ~/.config/backslash-terminal/commands.example.yaml ~/.config/backslash-terminal/commands.yaml
 ```
 
 Then press `/` on an empty prompt.
